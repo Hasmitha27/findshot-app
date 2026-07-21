@@ -62,8 +62,20 @@ The current match is **substring text matching**, not a ranking model — result
 
 ---
 
-## How search actually works
+## Tech stack
 
+| Layer | Choice | Why |
+|---|---|---|
+| UI | Kotlin + Jetpack Compose | Modern Android standard |
+| Gallery access | `MediaStore` + `ContentObserver` | Reads photos and detects new ones live, no polling |
+| OCR | ML Kit Text Recognition (unbundled/Play Services variant) | Real on-device model; unbundled variant avoids the [16 KB page-size](#engineering-notes-worth-reading) native-library issue |
+| Local storage | Room | Metadata + extracted OCR text |
+| Background work | WorkManager | Indexing without blocking the UI |
+| Image loading | Coil | Async image loading in Compose |
+
+---
+
+## How search actually works
 
 
 # Screenshot & Photo Search — Milestone 1
@@ -117,11 +129,15 @@ app/src/main/java/com/example/screenshotsearch/
     └── IndexingWorker.kt         # Background indexing (WorkManager)
 ```
 
-## Next steps (in order)
+## Roadmap
 
-1. **ContentObserver** — auto re-index when a new screenshot/photo is taken, instead of only indexing once at launch.
-2. **Semantic embeddings** — add a TFLite CLIP-style model, embed each image + the query text into the same vector space, add cosine-similarity ranking alongside OCR match.
-3. **Hybrid ranking** — combine OCR exact-match score + semantic similarity score into one ranked list.
-4. **Date parsing** — detect relative date phrases ("last week", "yesterday") in the query and filter by `dateAdded` before ranking.
-5. **Evaluation** — tag ~30-50 of your own images with ground-truth labels, write test queries, measure precision@k for OCR-only vs. semantic-only vs. hybrid. This is what turns the README into a credible engineering writeup, not just a feature list.
-6. **MCP interface** — expose `search_photos(query)` as a callable tool via Android AppFunctions/MCP so an external agent can query your gallery.
+- [ ] Semantic/embedding search (on-device CLIP-style model via TFLite/LiteRT)
+- [ ] Hybrid ranking (OCR score + semantic score combined)
+- [ ] Relative date parsing in queries
+- [ ] Evaluation harness — tagged test set, precision@k measured for OCR-only vs. semantic vs. hybrid
+- [ ] MCP interface (`search_photos(query)`) for agentic/external access
+- [ ] Unit tests for `QueryParser` and ranking logic
+- [ ] Migrate state to a `ViewModel` + sealed UI-state model
+- [ ] Basic dependency injection (Hilt)
+
+---
