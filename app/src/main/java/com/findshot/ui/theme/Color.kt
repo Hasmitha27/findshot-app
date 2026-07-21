@@ -2,11 +2,13 @@ package com.findshot.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Neobrutalist palette matched to the reference: cream background, hard black
-// borders with offset drop-shadows (no blur), and a terracotta accent.
-val Cream       = Color(0xFFF4F1EA)
-val InkBlack    = Color(0xFF18160F)
-val Terracotta  = Color(0xFFE8703A)
-val Amber       = Color(0xFFF5CE5C)
-val MutedText   = Color(0xFF6B6B63)
-val SearchWhite = Color(0xFFFFFDF9)
+
+// Clean dark mobile theme — flat surfaces, one accent, minimal decoration.
+val AppBackground = Color(0xFF0B0B10)
+val SurfaceDark    = Color(0xFF17171F)
+val SurfaceDark2   = Color(0xFF1F1F29)
+val Purple         = Color(0xFF8B6CFC)
+val PurpleMuted    = Color(0xFF2A2438)
+val TextPrimary    = Color(0xFFF2F2F5)
+val TextSecondary  = Color(0xFF9A9AA5)
+val Success        = Color(0xFF4ADE80)

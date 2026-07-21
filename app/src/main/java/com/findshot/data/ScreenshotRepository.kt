@@ -95,6 +95,13 @@ class ScreenshotRepository(private val context: Context) {
      * image's OCR text — so "wifi password" scores a match on both words higher
      * than one matching only "wifi".
      */
+    /**
+     * Searches by extracting keywords from the query, then matching each one
+     * against OCR text — case-insensitively, and also trying a naive singular
+     * form (stripping a trailing "s") so "passwords" matches OCR text that
+     * only contains "password". This is simple substring/stemming, not real
+     * NLP lemmatization — deliberately kept lightweight and dependency-free.
+     */
     suspend fun search(query: String): List<ScreenshotEntity> {
         if (query.isBlank()) return dao.getAll()
 
@@ -104,14 +111,23 @@ class ScreenshotRepository(private val context: Context) {
         val all = dao.getAll()
         return all
             .map { entity ->
-                val matchCount = keywords.count { kw -> entity.ocrText.contains(kw, ignoreCase = true) }
+                val textLower = entity.ocrText.lowercase()
+                val textCompact = textLower.replace(Regex("\\s+"), "")
+
+                val matchCount = keywords.count { kw ->
+                    val kwLower = kw.lowercase().trim()
+                    val singular = if (kwLower.endsWith("s") && kwLower.length > 3)
+                        kwLower.dropLast(1) else kwLower
+
+                    textLower.contains(kwLower) || textLower.contains(singular) ||
+                            textCompact.contains(kwLower) || textCompact.contains(singular)
+                }
                 entity to matchCount
             }
             .filter { (_, matchCount) -> matchCount > 0 }
             .sortedByDescending { (_, matchCount) -> matchCount }
             .map { (entity, _) -> entity }
     }
-
     suspend fun getAllIndexed(): List<ScreenshotEntity> = dao.getAll()
 
     suspend fun indexedCount(): Int = dao.count()

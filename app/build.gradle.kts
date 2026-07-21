@@ -48,12 +48,6 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
-
-    // On-device OCR (real ML model, Google's ML Kit — no cloud call)
-    // Using the "unbundled" Play Services variant instead of the statically-linked
-    // one: the bundled artifact's native .so isn't built for 16 KB page-size devices
-    // yet (a Google Play requirement since Nov 2025). The unbundled variant downloads
-    // the model via Play Services at runtime instead, which sidesteps the issue.
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 
     // Image loading for the results grid
@@ -63,4 +57,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.compose.material:material-icons-extended")
 }

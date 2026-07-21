@@ -12,17 +12,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -31,24 +30,34 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import coil.compose.AsyncImage
 import com.findshot.data.ScreenshotEntity
 import com.findshot.data.ScreenshotRepository
+import com.findshot.ui.OnboardingScreen
 import com.findshot.ui.theme.FindshotTheme
 import com.findshot.worker.IndexingWorker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 
+private data class RecentSearch(val query: String, val timestampMs: Long)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +72,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ScreenshotSearchScreen() {
     val context = LocalContext.current
@@ -74,16 +84,29 @@ fun ScreenshotSearchScreen() {
     var results by remember { mutableStateOf<List<ScreenshotEntity>>(emptyList()) }
     var isIndexing by remember { mutableStateOf(false) }
     var indexedCount by remember { mutableStateOf(0) }
+    var totalCount by remember { mutableStateOf(0) }
+    var recentSearches by remember { mutableStateOf<List<RecentSearch>>(emptyList()) }
 
     val permission = if (Build.VERSION.SDK_INT >= 33)
         Manifest.permission.READ_MEDIA_IMAGES
     else
         Manifest.permission.READ_EXTERNAL_STORAGE
 
-    fun refreshResults(q: String) {
+    fun refreshCounts() {
+        scope.launch {
+            indexedCount = repository.indexedCount()
+            totalCount = repository.queryAllImages().size
+        }
+    }
+
+    fun runSearch(q: String) {
         scope.launch {
             results = repository.search(q)
-            indexedCount = repository.indexedCount()
+            if (q.isNotBlank()) {
+                recentSearches = (listOf(RecentSearch(q, System.currentTimeMillis())) +
+                        recentSearches.filterNot { it.query.equals(q, ignoreCase = true) })
+                    .take(4)
+            }
         }
     }
 
@@ -97,22 +120,21 @@ fun ScreenshotSearchScreen() {
             WorkManager.getInstance(context).enqueue(request)
             scope.launch {
                 delay(3000)
-                refreshResults("")
+                refreshCounts()
                 isIndexing = false
             }
         }
     }
 
-    // Live sync: index any new photo/screenshot the instant it's added, while open.
     DisposableEffect(hasPermission) {
         if (!hasPermission) return@DisposableEffect onDispose {}
-
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 super.onChange(selfChange, uri)
                 scope.launch {
                     repository.indexAnyNewImages()
-                    refreshResults(query)
+                    refreshCounts()
+                    if (query.isNotBlank()) runSearch(query)
                 }
             }
         }
@@ -122,11 +144,15 @@ fun ScreenshotSearchScreen() {
         onDispose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    // Debounced live search: waits 250ms after the last keystroke before querying.
     LaunchedEffect(query, hasPermission) {
         if (!hasPermission) return@LaunchedEffect
         delay(250)
-        refreshResults(query)
+        runSearch(query)
+    }
+
+    if (!hasPermission) {
+        OnboardingScreen(onGrantAccess = { permissionLauncher.launch(permission) })
+        return
     }
 
     Column(
@@ -134,267 +160,272 @@ fun ScreenshotSearchScreen() {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("FindShot", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        "AI",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+            Icon(
+                Icons.Filled.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.height(2.dp))
         Text(
-            "Find the photo\nhiding in your gallery.",
-            style = MaterialTheme.typography.headlineLarge
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Findshot reads the text inside your screenshots and photos, entirely on this device, so you can search receipts, signs, notes, and memories in seconds.",
-            style = MaterialTheme.typography.bodyLarge,
+            "Search your gallery, on your device",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(Modifier.height(20.dp))
 
-        NeoBrutalSurface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.secondary
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Box(modifier = Modifier.weight(1f)) {
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.width(12.dp))
-                Column {
+                if (query.isEmpty()) {
                     Text(
-                        "Your photos stay on this device",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Text(
-                        "Every photo is processed on-device — nothing is uploaded to search it.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Search anything in your gallery…",
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-        }
-
-        Spacer(Modifier.height(14.dp))
-
-        if (!hasPermission) {
-            NeoBrutalSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = { permissionLauncher.launch(permission) }
-            ) {
-                Text(
-                    "Grant photo access",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+            if (query.isNotEmpty()) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Clear",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp).clickable { query = "" }
                 )
             }
-        } else {
-            NeoBrutalSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = {
-                    isIndexing = true
-                    scope.launch {
-                        repository.indexAnyNewImages()
-                        refreshResults(query)
-                        isIndexing = false
+        }
+
+        if (query.isNotBlank()) {
+            Spacer(Modifier.height(20.dp))
+            if (results.isEmpty()) {
+                Text(
+                    "No matches for \"$query\"",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                var inspecting by remember { mutableStateOf<ScreenshotEntity?>(null) }
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                ) {
+                    items(results) { item ->
+                        AsyncImage(
+                            model = Uri.parse(item.uriString),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = { inspecting = item }
+                                )
+                        )
                     }
                 }
-            ) {
-                Text(
-                    if (isIndexing) "Scanning your gallery…" else "Rescan gallery now",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                inspecting?.let { item ->
+                    AlertDialog(
+                        onDismissRequest = { inspecting = null },
+                        confirmButton = {
+                            TextButton(onClick = { inspecting = null }) { Text("Close") }
+                        },
+                        title = { Text("Extracted text") },
+                        text = { Text(item.ocrText.ifBlank { "No text detected in this image." }) }
                     )
-                )
+                }
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "New photos are also picked up automatically while Findshot is open.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            // Dashboard view.
+            Spacer(Modifier.height(24.dp))
+
+            Text("Suggested Searches", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(10.dp))
+
+            val suggestions = listOf(
+                Icons.Filled.Lock to "Passwords",
+                Icons.Filled.ReceiptLong to "Receipts",
+                Icons.Filled.Description to "Invoices",
+                Icons.Filled.Folder to "Documents",
+                Icons.Filled.Flight to "Travel",
+                Icons.Filled.Image to "Screenshots"
             )
-        }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                suggestions.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { (icon, label) ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .clickable { query = label.lowercase() }
+                                    .padding(vertical = 14.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        icon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
 
-        Spacer(Modifier.height(28.dp))
-
-        Text(
-            "YOUR GALLERY",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Text("Search what you can see", style = MaterialTheme.typography.headlineSmall)
-            Text(
-                "$indexedCount photos",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        if (hasPermission) {
-            NeoBrutalSurface(
+            val progress = if (totalCount > 0) indexedCount.toFloat() / totalCount else 0f
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                color = MaterialTheme.colorScheme.surface,
-                cornerRadius = 28.dp
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable {
+                        isIndexing = true
+                        scope.launch {
+                            repository.indexAnyNewImages()
+                            refreshCounts()
+                            isIndexing = false
+                        }
+                    }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🔍", style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.width(10.dp))
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.outline)
-                        )
-                        if (query.isEmpty()) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(60.dp)) {
+                    CircularProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        strokeWidth = 4.dp
+                    )
+                    Text(
+                        "${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        if (isIndexing) "Indexing gallery…" else "Gallery indexed",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                    Text(
+                        "$indexedCount of $totalCount photos",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (recentSearches.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                Text("Recent Searches", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    recentSearches.forEach { recent ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { query = recent.query }
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(recent.query, style = MaterialTheme.typography.bodyLarge)
+                            }
                             Text(
-                                "Try \"wifi\", \"invoice\", or \"hill station\"",
-                                style = MaterialTheme.typography.bodyLarge,
+                                timeAgo(recent.timestampMs),
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             }
-
-            Spacer(Modifier.height(20.dp))
-
-            when {
-                isIndexing -> IndexingRow()
-                indexedCount == 0 -> EmptyState(
-                    title = "Nothing indexed yet",
-                    subtitle = "Grant access above and Findshot will start reading your gallery."
-                )
-                query.isNotBlank() && results.isEmpty() -> EmptyState(
-                    title = "No matches",
-                    subtitle = "Try different words from what's actually in the photo."
-                )
-                else -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(400.dp)
-                    ) {
-                        items(results) { item ->
-                            AsyncImage(
-                                model = Uri.parse(item.uriString),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 }
 
-/** The signature element: a hard black border + offset drop-shadow, no blur. */
-@Composable
-private fun NeoBrutalSurface(
-    modifier: Modifier = Modifier,
-    color: Color,
-    cornerRadius: Dp = 18.dp,
-    borderWidth: Dp = 2.dp,
-    shadowOffset: Dp = 5.dp,
-    onClick: (() -> Unit)? = null,
-    content: @Composable BoxScope.() -> Unit
-) {
-    val borderColor = MaterialTheme.colorScheme.outline
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = shadowOffset, y = shadowOffset)
-                .clip(RoundedCornerShape(cornerRadius))
-                .background(borderColor)
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                .clip(RoundedCornerShape(cornerRadius))
-                .background(color)
-                .border(borderWidth, borderColor, RoundedCornerShape(cornerRadius)),
-            contentAlignment = Alignment.Center,
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun IndexingRow() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 20.dp)
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(18.dp),
-            color = MaterialTheme.colorScheme.primary,
-            strokeWidth = 2.dp
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "Scanning your gallery…",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun EmptyState(title: String, subtitle: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
+private fun timeAgo(timestampMs: Long): String {
+    val diffMin = (System.currentTimeMillis() - timestampMs) / 60000
+    return when {
+        diffMin < 1 -> "just now"
+        diffMin < 60 -> "${diffMin}m ago"
+        diffMin < 1440 -> "${diffMin / 60}h ago"
+        else -> "${diffMin / 1440}d ago"
     }
 }

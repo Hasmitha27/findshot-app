@@ -5,41 +5,33 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+
 val FindshotTypography = Typography(
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 34.sp,
-        lineHeight = 38.sp,
-        letterSpacing = (-0.5).sp
-    ),
     headlineSmall = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.Bold,
-        fontSize = 20.sp
+        fontFamily = Manrope,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 23.sp,
+        letterSpacing = (-0.3).sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = Manrope,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp
     ),
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 22.sp
+        fontFamily = Manrope,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
+        fontFamily = Manrope,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        letterSpacing = 1.sp
+        fontSize = 13.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        letterSpacing = 1.5.sp
+        letterSpacing = 0.5.sp
     )
 )
