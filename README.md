@@ -10,12 +10,6 @@
 
 FindShot reads the visible text in every screenshot and photo on your phone — using Google ML Kit's on-device text recognizer — so you can search your gallery the way you'd search your notes. No photo, and no extracted text, ever leaves the device.
 
-<p align="center">
-  <!-- Add a screenshot or screen-recording GIF here once you have one — this is the single highest-impact thing to add. -->
-  <i>📸 Screenshot / demo GIF goes here</i>
-</p>
-
----
 
 ## Contents
 
