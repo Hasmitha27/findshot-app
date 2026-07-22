@@ -56,6 +56,12 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 private data class RecentSearch(val query: String, val timestampMs: Long)
 
@@ -65,7 +71,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             FindshotTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    ScreenshotSearchScreen()
+                    ImagSearchScreen()
                 }
             }
         }
@@ -74,11 +80,13 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ScreenshotSearchScreen() {
+fun ImagSearchScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { ScreenshotRepository(context) }
 
+    var viewingImage by remember { mutableStateOf<ScreenshotEntity?>(null) }
+    var inspecting by remember { mutableStateOf<ScreenshotEntity?>(null) }
     var hasPermission by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<ScreenshotEntity>>(emptyList()) }
@@ -265,15 +273,33 @@ fun ScreenshotSearchScreen() {
                         AsyncImage(
                             model = Uri.parse(item.uriString),
                             contentDescription = null,
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .combinedClickable(
-                                    onClick = {},
+                                    onClick = { viewingImage = item },
                                     onLongClick = { inspecting = item }
                                 )
                         )
                     }
+                }
+                viewingImage?.let { item ->
+                    FullImageViewer(
+                        imageUri = item.uriString,
+                        onDismiss = { viewingImage = null }
+                    )
+                }
+
+                inspecting?.let { item ->
+                    AlertDialog(
+                        onDismissRequest = { inspecting = null },
+                        confirmButton = {
+                            TextButton(onClick = { inspecting = null }) { Text("Close") }
+                        },
+                        title = { Text("Extracted text") },
+                        text = { Text(item.ocrText.ifBlank { "No text detected in this image." }) }
+                    )
                 }
                 inspecting?.let { item ->
                     AlertDialog(
@@ -427,5 +453,35 @@ private fun timeAgo(timestampMs: Long): String {
         diffMin < 60 -> "${diffMin}m ago"
         diffMin < 1440 -> "${diffMin / 60}h ago"
         else -> "${diffMin / 1440}d ago"
+    }
+}
+@Composable
+private fun FullImageViewer(imageUri: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black)
+        ) {
+            AsyncImage(
+                model = Uri.parse(imageUri),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Icon(
+                Icons.Filled.ArrowBack,
+                contentDescription = "Close",
+                tint = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier
+                    .padding(20.dp)
+                    .size(28.dp)
+                    .clickable(onClick = onDismiss)
+            )
+        }
     }
 }
