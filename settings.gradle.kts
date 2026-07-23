@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ScreenshotSearch"
+rootProject.name = "FindShot"
 include(":app")

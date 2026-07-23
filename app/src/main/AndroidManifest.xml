@@ -9,7 +9,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Screenshot Search">
+        android:label="FindShot">
 
         <!-- Triggers the unbundled ML Kit OCR model to download at install time
              instead of on first use, so indexing doesn't stall waiting for it. -->
