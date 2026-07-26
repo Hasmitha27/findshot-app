@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import com.findshot.screens.ImageSearchScreen
 import com.findshot.ui.theme.FindshotTheme
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 
 
